@@ -9,6 +9,7 @@ import me.shedaniel.autoconfig.ConfigHolder;
 import me.shedaniel.autoconfig.serializer.JanksonConfigSerializer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.advancement.AdvancementCriterion;
 import net.minecraft.advancement.PlacedAdvancement;
 import net.minecraft.advancement.criterion.CriterionConditions;
 import net.minecraft.client.gui.screen.advancement.AdvancementTab;
@@ -75,9 +76,9 @@ public class AdvancementInfo implements ClientModInitializer
                 }
             }
             if (translation == null) {
-                CriterionConditions conditions = advancement.getAdvancement().criteria().get(s).conditions();
-                if (conditions != null) {
-                    JsonObject o = conditions.toJson();
+                AdvancementCriterion criterion = advancement.getAdvancement().criteria().get(s);
+                if (criterion != null) {
+                    JsonObject o = criterion.conditions().toJson();
                     JsonElement maybeEffects = o.get("effects");
                     if (maybeEffects != null && maybeEffects instanceof JsonObject) {
                         JsonObject effects = (JsonObject) maybeEffects;
