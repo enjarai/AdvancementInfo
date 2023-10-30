@@ -2,34 +2,27 @@ package de.guntram.mcmod.advancementinfo;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import de.guntram.mcmod.advancementinfo.accessors.AdvancementProgressAccessor;
 import de.guntram.mcmod.advancementinfo.accessors.AdvancementScreenAccessor;
 import de.guntram.mcmod.advancementinfo.accessors.AdvancementWidgetAccessor;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 import me.shedaniel.autoconfig.AutoConfig;
 import me.shedaniel.autoconfig.ConfigHolder;
 import me.shedaniel.autoconfig.serializer.JanksonConfigSerializer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.advancement.Advancement;
-import net.minecraft.advancement.AdvancementProgress;
+import net.minecraft.advancement.PlacedAdvancement;
 import net.minecraft.advancement.criterion.CriterionConditions;
 import net.minecraft.client.gui.screen.advancement.AdvancementTab;
 import net.minecraft.client.gui.screen.advancement.AdvancementWidget;
 import net.minecraft.client.gui.screen.advancement.AdvancementsScreen;
 import net.minecraft.client.network.ClientAdvancementManager;
 import net.minecraft.client.resource.language.I18n;
-import net.minecraft.predicate.entity.AdvancementEntityPredicateSerializer;
 import net.minecraft.util.ActionResult;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
+
+import java.util.*;
 
 public class AdvancementInfo implements ClientModInitializer
 {
@@ -45,12 +38,12 @@ public class AdvancementInfo implements ClientModInitializer
 
     public static List<AdvancementStep> getSteps(AdvancementWidgetAccessor widget) {
         List<AdvancementStep> result = new ArrayList<>();
-        addStep(result, widget.getProgress(), widget.getProgress().getUnobtainedCriteria(), false);
-        addStep(result, widget.getProgress(), widget.getProgress().getObtainedCriteria(), true);
+        addStep(result, widget.getAdvancement(), widget.getProgress().getUnobtainedCriteria(), false);
+        addStep(result, widget.getAdvancement(), widget.getProgress().getObtainedCriteria(), true);
         return result;        
     }
     
-    private static void addStep(List<AdvancementStep> result, AdvancementProgress progress, Iterable<String> criteria, boolean obtained) {
+    private static void addStep(List<AdvancementStep> result, PlacedAdvancement advancement, Iterable<String> criteria, boolean obtained) {
         final String[] prefixes = new String[] { "item.minecraft", "block.minecraft", "entity.minecraft", "container", "effect.minecraft", "biome.minecraft" };
         // criteria is actually a List<> .. but play nice
         ArrayList<String> sorted = new ArrayList<>();
@@ -82,9 +75,9 @@ public class AdvancementInfo implements ClientModInitializer
                 }
             }
             if (translation == null) {
-                CriterionConditions conditions = ((AdvancementProgressAccessor)(progress)).getCriterion(s).getConditions();
+                CriterionConditions conditions = advancement.getAdvancement().criteria().get(s).conditions();
                 if (conditions != null) {
-                    JsonObject o = conditions.toJson(AdvancementEntityPredicateSerializer.INSTANCE);
+                    JsonObject o = conditions.toJson();
                     JsonElement maybeEffects = o.get("effects");
                     if (maybeEffects != null && maybeEffects instanceof JsonObject) {
                         JsonObject effects = (JsonObject) maybeEffects;
@@ -103,40 +96,43 @@ public class AdvancementInfo implements ClientModInitializer
     public static void setMatchingFrom(AdvancementsScreen screen, String text) {
         List<AdvancementStep> result = new ArrayList<>();
         ClientAdvancementManager advancementHandler = ((AdvancementScreenAccessor)screen).getAdvancementHandler();
-        Collection<Advancement> all = advancementHandler.getManager().getAdvancements();
+        Collection<PlacedAdvancement> all = advancementHandler.getManager().getAdvancements();
         int lineCount = 0;
         
         text = text.toLowerCase();
-        for (Advancement adv: all) {
-            if(adv.getId().getPath().startsWith("recipes/")) {
+        for (PlacedAdvancement placed: all) {
+            var id = placed.getAdvancementEntry().id();
+            var adv = placed.getAdvancement();
+
+            if(id.getPath().startsWith("recipes/")) {
                 continue;
             }
-            if (adv.getDisplay() == null) {
-                LOGGER.debug("! {} Has no display", adv.getId());
+            if (adv.display().isEmpty()) {
+                LOGGER.debug("! {} Has no display", id);
                 continue;
             }
-            if (adv.getDisplay().getTitle() == null) {
-                LOGGER.debug("! {} Has no title", adv.getId());
+            if (adv.display().get().getTitle() == null) {
+                LOGGER.debug("! {} Has no title", id);
                 continue;
             }
-            if (adv.getDisplay().getDescription() == null) {
-                LOGGER.debug("! {} Has no description", adv.getId());
+            if (adv.display().get().getDescription() == null) {
+                LOGGER.debug("! {} Has no description", id);
                 continue;
             }
-            String title = adv.getDisplay().getTitle().getString();
-            String desc  = adv.getDisplay().getDescription().getString();
-            LOGGER.debug("- {} {}: {} ", adv.getId(), title, desc);
+            String title = adv.display().get().getTitle().getString();
+            String desc  = adv.display().get().getDescription().getString();
+            LOGGER.debug("- {} {}: {} ", id, title, desc);
             if (title.toLowerCase().contains(text)
             ||  desc.toLowerCase().contains(text)) {
                 ArrayList<String> details = new ArrayList<>();
                 details.add(desc);
-                AdvancementTab tab = ((AdvancementScreenAccessor)screen).myGetTab(adv);
+                AdvancementTab tab = ((AdvancementScreenAccessor)screen).myGetTab(placed);
                 if (tab == null) {
-                    LOGGER.info("no tab found for advancement {} title {} description {}", adv.getId(), title, desc);
+                    LOGGER.info("no tab found for advancement {} title {} description {}", id, title, desc);
                     continue;
                 }
                 details.add(tab.getTitle().getString());
-                boolean done = ((AdvancementWidgetAccessor)(screen.getAdvancementWidget(adv))).getProgress().isDone();
+                boolean done = ((AdvancementWidgetAccessor)(screen.getAdvancementWidget(placed))).getProgress().isDone();
                 result.add(new AdvancementStep(title, done, details));
                 lineCount+=3;
             }

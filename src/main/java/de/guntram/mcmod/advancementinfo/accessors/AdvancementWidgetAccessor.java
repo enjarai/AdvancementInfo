@@ -6,6 +6,7 @@
 package de.guntram.mcmod.advancementinfo.accessors;
 
 import net.minecraft.advancement.AdvancementProgress;
+import net.minecraft.advancement.PlacedAdvancement;
 
 /**
  *
@@ -13,4 +14,6 @@ import net.minecraft.advancement.AdvancementProgress;
  */
 public interface AdvancementWidgetAccessor {
     public AdvancementProgress getProgress();
+
+    public PlacedAdvancement getAdvancement();
 }
